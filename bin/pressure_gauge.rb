@@ -1,5 +1,7 @@
 require 'nokogiri'
 require 'pp'
+require 'json'
+require 'colorize'
 
 # host:
 #  slots
@@ -7,35 +9,60 @@ require 'pp'
 #  jobs:
 #    owner: slots
 
+
+def generate_load_bar(slots_by_owner, total_slots, overload_threshold)
+  remaining_slots = total_slots
+
+  load_bar = ''
+  slots_by_owner.each do |owner, slots|
+    load_bar += "#{owner[0] * slots}"
+    remaining_slots -= slots
+  end
+  load_bar += '-' * remaining_slots
+
+  load_bar[overload_threshold..total_slots] = load_bar[overload_threshold..total_slots].colorize(:color => :red)
+  load_bar.insert(overload_threshold, '|') if overload_threshold < total_slots
+  load_bar
+end
+
+info = Hash.new
 # we only need qhost -cb here
 qhost_xml = File.open('test/qhost_cb_j.xml')
 Nokogiri.XML(qhost_xml).xpath("//host[@name != 'global']").each do |host|
-  name_full = host.xpath("@name").to_s
-  name_short = name_full.split('.').first
-  cores = host.xpath("hostvalue[@name = 'm_core']/text()")
-  slots = host.xpath("hostvalue[@name = 'num_proc']/text()")
-  job_num = host.xpath("job").count
+  hostname = host.xpath("@name").to_s
 
-  puts "Host #{name_short}: #{slots}/#{cores} runs #{job_num} Jobs"
+  cores = host.xpath("hostvalue[@name = 'm_core']/text()").text.to_i
+  slots = host.xpath("hostvalue[@name = 'num_proc']/text()").text.to_i
 
-  # host.xpath("job").each{ |job|
-  #   job.xpath("")
-  # }
+  # skip hosts that are down
+  next if cores == 0 or slots == 0
+
+  # set up data structure for host
+  info[hostname] = Hash.new
+  info[hostname][:jobs] = Hash.new
+
+  info[hostname][:cores] = cores
+  info[hostname][:slots] = slots
 end
 
-job_stats = Hash.new
 # get the juicy job details
 qstat_xml = File.open('test/qstat_gt_sr.xml')
 Nokogiri.XML(qstat_xml).xpath("//job_list").each do |job|
   hostname = job.xpath("queue_name/text()").to_s.split('@').last
   owner = job.xpath("JB_owner/text()").text
-  slots = job.xpath("slots/text()").text
+  slots = job.xpath("slots/text()").text.to_i
 
-  if job_stats[hostname].nil? then job_stats[hostname] = Hash.new end
-  if job_stats[hostname][owner].nil? then job_stats[hostname][owner] = 0 end
+  info[hostname][:jobs][owner] = 0 if info[hostname][:jobs][owner].nil?
 
-  job_stats[hostname][owner] += 1
+  info[hostname][:jobs][owner] += slots
 end
 
-pp job_stats
-pp job_stats["compute-6-20.imp.univie.ac.at"].sort
+
+info.each do |hostname, data|
+
+  shortname = hostname.split('.').first.gsub(/compute/, 'c')
+
+  load_bar = generate_load_bar(data[:jobs], data[:slots], data[:cores])
+  puts sprintf("%-6.6s: [%s]", shortname, load_bar)
+
+end
