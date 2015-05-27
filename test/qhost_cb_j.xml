@@ -11,6 +11,17 @@
         <hostvalue name='swap_total'>-</hostvalue>
         <hostvalue name='swap_used'>-</hostvalue>
     </host>
+    <host name='group-stark-6-3.imp.univie.ac.at'>
+        <hostvalue name='arch_string'>linux-x64</hostvalue>
+        <hostvalue name='num_proc'>24</hostvalue>
+        <hostvalue name='m_socket'>2</hostvalue>
+        <hostvalue name='m_core'>12</hostvalue>
+        <hostvalue name='load_avg'>0.01</hostvalue>
+        <hostvalue name='mem_total'>126.0G</hostvalue>
+        <hostvalue name='mem_used'>1.5G</hostvalue>
+        <hostvalue name='swap_total'>9.3G</hostvalue>
+        <hostvalue name='swap_used'>7.8M</hostvalue>
+    </host>
     <host name='compute-4-1.bioinfo.imp.ac.at'>
         <hostvalue name='arch_string'>linux-x64</hostvalue>
         <hostvalue name='num_proc'>12</hostvalue>
@@ -2713,6 +2724,17 @@
             <jobvalue jobid='2410391' name='queue_name'>openmpi.q@compute-6-4.bioinfo.imp.ac.at</jobvalue>
             <jobvalue jobid='2410391' name='pe_master'>SLAVE</jobvalue>
         </job>
+    </host>
+    <host name='compute-6-45.bioinfo.imp.ac.at'>
+        <hostvalue name='arch_string'>linux-x64</hostvalue>
+        <hostvalue name='num_proc'>24</hostvalue>
+        <hostvalue name='m_socket'>2</hostvalue>
+        <hostvalue name='m_core'>12</hostvalue>
+        <hostvalue name='load_avg'>17.72</hostvalue>
+        <hostvalue name='mem_total'>141.9G</hostvalue>
+        <hostvalue name='mem_used'>7.9G</hostvalue>
+        <hostvalue name='swap_total'>14.9G</hostvalue>
+        <hostvalue name='swap_used'>0.0</hostvalue>
     </host>
     <host name='compute-6-5.bioinfo.imp.ac.at'>
         <hostvalue name='arch_string'>linux-x64</hostvalue>

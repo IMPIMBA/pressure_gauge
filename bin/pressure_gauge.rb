@@ -1,28 +1,45 @@
 require 'nokogiri'
-require 'pp'
-require 'json'
 require 'colorize'
 
-# host:
-#  slots
-#  cores
-#  jobs:
-#    owner: slots
-
+blacklist = [ 'lorca', 'rivera', 'piwi' ]
 
 def generate_load_bar(slots_by_owner, total_slots, overload_threshold)
-  remaining_slots = total_slots
-
   load_bar = ''
+  remaining_slots = total_slots
   slots_by_owner.each do |owner, slots|
     load_bar += "#{owner[0] * slots}"
     remaining_slots -= slots
   end
   load_bar += '-' * remaining_slots
 
-  load_bar[overload_threshold..total_slots] = load_bar[overload_threshold..total_slots].colorize(:color => :red)
+  load_bar[overload_threshold..total_slots] = load_bar[overload_threshold..total_slots].red
   load_bar.insert(overload_threshold, '|') if overload_threshold < total_slots
   load_bar
+end
+
+def get_mem_in_gb(mem_string)
+  case mem_string[-1]
+    when 'M'
+      (mem_string.split('M').first.to_f / 1024).floor
+    when 'G'
+      (mem_string.split('M').first.to_f).floor
+    when 'T'
+      (mem_string.split('M').first.to_f * 1024).floor
+  end
+end
+
+def get_formatted_load_avg(slots_by_owner, load_avg, overload_threshold)
+  used_slots = 0
+  slots_by_owner.each do |owner, slots|
+    used_slots += slots
+  end
+
+  if load_avg > overload_threshold + 2 or load_avg > used_slots + 2 then
+    load_avg.to_s.red
+  else
+    load_avg.to_s.green
+  end
+
 end
 
 info = Hash.new
@@ -31,18 +48,26 @@ qhost_xml = File.open('test/qhost_cb_j.xml')
 Nokogiri.XML(qhost_xml).xpath("//host[@name != 'global']").each do |host|
   hostname = host.xpath("@name").to_s
 
+  next if blacklist.include?(hostname.split('.').first)
+
   cores = host.xpath("hostvalue[@name = 'm_core']/text()").text.to_i
   slots = host.xpath("hostvalue[@name = 'num_proc']/text()").text.to_i
+  load_avg = host.xpath("hostvalue[@name = 'load_avg']/text()").text.to_f
+  mem_total = host.xpath("hostvalue[@name = 'mem_total']/text()").text
+  mem_used = host.xpath("hostvalue[@name = 'mem_used']/text()").text
 
   # skip hosts that are down
   next if cores == 0 or slots == 0
 
   # set up data structure for host
   info[hostname] = Hash.new
-  info[hostname][:jobs] = Hash.new
+  info[hostname][:jobs] = Hash.new(0)
 
   info[hostname][:cores] = cores
   info[hostname][:slots] = slots
+  info[hostname][:load_avg] = load_avg
+  info[hostname][:mem_total] = get_mem_in_gb(mem_total)
+  info[hostname][:mem_used] = get_mem_in_gb(mem_used)
 end
 
 # get the juicy job details
@@ -52,17 +77,22 @@ Nokogiri.XML(qstat_xml).xpath("//job_list").each do |job|
   owner = job.xpath("JB_owner/text()").text
   slots = job.xpath("slots/text()").text.to_i
 
-  info[hostname][:jobs][owner] = 0 if info[hostname][:jobs][owner].nil?
-
   info[hostname][:jobs][owner] += slots
 end
 
-
-info.each do |hostname, data|
-
+# natural sort by: http://stackoverflow.com/questions/4078906/is-there-a-natural-sort-by-method-for-ruby
+out = ""
+info.
+    select { |key| key.to_s.match(/compute-.*/) }.
+    sort_by {|e| e.first.split(/(\d+)/).map {|a| a =~ /\d+/ ? a.to_i : a }}.
+    each.with_index(1) do | (hostname, data), index|
   shortname = hostname.split('.').first.gsub(/compute/, 'c')
 
   load_bar = generate_load_bar(data[:jobs], data[:slots], data[:cores])
-  puts sprintf("%-6.6s: [%s]", shortname, load_bar)
-
+  out += sprintf("%-6s: [%s] %20s  %2.0f/%2.0f\t", shortname, load_bar, get_formatted_load_avg(data[:jobs], data[:load_avg], data[:cores]), data[:mem_used], data[:mem_total])
+  if index % 1 == 0 then
+    puts out
+    out = ""
+  end
 end
+puts out
